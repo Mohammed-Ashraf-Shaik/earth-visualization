@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Terra 3D Satellite Earth Engine</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css" />
+  <script src="https://js.arcgis.com/4.31/"></script>
+  <style>
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+      background: #050608;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    /* Luxury Obsidian & Gold Dark UI styling */
+    .esri-ui-corner .esri-component {
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 14px !important;
+      overflow: hidden !important;
+      background: rgba(13, 14, 18, 0.92) !important;
+      backdrop-filter: blur(20px) !important;
+    }
+    .esri-widget--button {
+      background: rgba(13, 14, 18, 0.88) !important;
+      color: #f1f5f9 !important;
+      transition: all 0.2s ease !important;
+    }
+    .esri-widget--button:hover {
+      background: #f59e0b !important;
+      color: #050608 !important;
+    }
+    .esri-navigation-toggle {
+      border-radius: 12px !important;
+    }
+    .esri-compass {
+      border-radius: 12px !important;
+    }
+    /* 360 3D Orbit Tip */
+    #orbitHint {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(12, 13, 18, 0.92);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fef3c7;
+      padding: 7px 18px;
+      border-radius: 24px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      pointer-events: none;
+      z-index: 10;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.04em;
+    }
+    #orbitHint span.key {
+      background: rgba(245, 158, 11, 0.25);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewDiv"></div>
+  <div id="orbitHint">
+    <span>🌐 360° REAL 3D VIEW:</span>
+    <span class="key">RIGHT-CLICK + DRAG</span> or <span class="key">CTRL + DRAG</span> TO ORBIT 360° AROUND REAL 3D STRUCTURE
+  </div>
+
+  <script>
+    require([
+      "esri/Map",
+      "esri/views/SceneView",
+      "esri/layers/SceneLayer",
+      "esri/Camera"
+    ], function(Map, SceneView, SceneLayer, Camera) {
+      
+      // 1. Initialize Map with Global High-Res Satellite Imagery & Real 3D Global Elevation
+      const map = new Map({
+        basemap: "satellite",
+        ground: "world-elevation"
+      });
+
+      // 2. Real 3D OpenStreetMap Buildings Layer (Real 3D structures from satellite photogrammetry)
+      const buildingsLayer = new SceneLayer({
+        url: "https://basemaps3d.arcgis.com/arcgis/rest/services/OpenStreetMap3D_Buildings_v1/SceneServer",
+        title: "Global 3D Buildings & Structures",
+        opacity: 0.95
+      });
+      map.add(buildingsLayer);
+
+      // 3. SceneView in Global Mode with Realistic Sun, Stars & Atmosphere
+      const view = new SceneView({
+        container: "viewDiv",
+        map: map,
+        qualityProfile: "high",
+        environment: {
+          atmosphereEnabled: true,
+          starsEnabled: true,
+          atmosphere: {
+            quality: "high"
+          },
+          lighting: {
+            directShadowsEnabled: true,
+            date: new Date()
+          }
+        },
+        camera: {
+          position: {
+            x: 12.4922,
+            y: 41.8902,
+            z: 950
+          },
+          heading: 35,
+          tilt: 78 // Steep 3D Ground Perspective (Never Flat!)
+        },
+        ui: {
+          components: ["compass", "navigation-toggle", "zoom"]
+        }
+      });
+
+      // Notify parent window when SceneView is fully initialized
+      view.when(function() {
+        if (window.parent) {
+          window.parent.postMessage({ type: "TERRA_VIEW_READY" }, "*");
+        }
+      });
+
+      // Continuous 360 Orbit State
+      let orbitInterval = null;
+
+      // Handle high-speed postMessage commands from parent React workstation
+      window.addEventListener("message", function(event) {
+        const data = event.data;
+        if (!data || typeof data !== "object") return;
+
+        if (data.type === "FLY_TO") {
+          if (orbitInterval) {
+            clearInterval(orbitInterval);
+            orbitInterval = null;
+          }
+
+          const targetLng = Number(data.lng);
+          const targetLat = Number(data.lat);
+          const heading = Number(data.heading) || 35;
+          const tilt = Number(data.tilt) || 78; // Steep 78° tilt for true 3D structure
+          const zoom = Number(data.zoom) || 17;
+
+          // Zero-delay fast camera glide directly to target 3D structure
+          view.goTo({
+            target: [targetLng, targetLat],
+            heading: heading,
+            tilt: tilt,
+            zoom: zoom
+          }, {
+            duration: 1400,
+            easing: "in-out-cubic"
+          });
+        } 
+        else if (data.type === "SET_TILT") {
+          const newTilt = Number(data.tilt) || 78;
+          view.goTo({
+            tilt: newTilt
+          }, {
+            duration: 500,
+            easing: "ease-out"
+          });
+        }
+        else if (data.type === "SET_HEADING") {
+          const newHeading = Number(data.heading) || 0;
+          view.goTo({
+            heading: newHeading
+          }, {
+            duration: 700,
+            easing: "ease-out"
+          });
+        }
+        else if (data.type === "ORBIT_STEP") {
+          const step = Number(data.step) || 45;
+          const nextHeading = (view.camera.heading + step) % 360;
+          view.goTo({
+            heading: nextHeading,
+            tilt: Math.max(view.camera.tilt, 75)
+          }, {
+            duration: 900,
+            easing: "in-out-cubic"
+          });
+        }
+        else if (data.type === "START_AUTO_ORBIT") {
+          if (orbitInterval) clearInterval(orbitInterval);
+          orbitInterval = setInterval(function() {
+            const nextHeading = (view.camera.heading + 25) % 360;
+            view.goTo({
+              heading: nextHeading,
+              tilt: Math.max(view.camera.tilt, 75)
+            }, {
+              duration: 2000,
+              easing: "linear"
+            });
+          }, 2200);
+        }
+        else if (data.type === "STOP_AUTO_ORBIT") {
+          if (orbitInterval) {
+            clearInterval(orbitInterval);
+            orbitInterval = null;
+          }
+        }
+        else if (data.type === "RESET_GLOBAL") {
+          if (orbitInterval) {
+            clearInterval(orbitInterval);
+            orbitInterval = null;
+          }
+          view.goTo({
+            position: {
+              x: 0,
+              y: 20,
+              z: 22000000
+            },
+            heading: 0,
+            tilt: 0.1
+          }, {
+            duration: 1800,
+            easing: "in-out-cubic"
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

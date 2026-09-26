@@ -17,22 +17,25 @@ import {
   Wind,
   Copy,
   Check,
+  RotateCw,
 } from 'lucide-react';
 
 interface GeographicInspectorProps {
   feature: GeographicFeature | null;
   onClose: () => void;
-  onSelectViewpoint: (viewpoint: string) => void;
-  onOpen360?: () => void;
+  onOrbit360: () => void;
+  isOrbiting: boolean;
+  onSelectTilt: (tilt: number) => void;
 }
 
 export function GeographicInspector({
   feature,
   onClose,
-  onSelectViewpoint,
-  onOpen360,
+  onOrbit360,
+  isOrbiting,
+  onSelectTilt,
 }: GeographicInspectorProps) {
-  const { playHover, playSelect, playFlyTo } = useAudio();
+  const { playHover, playSelect } = useAudio();
   const [copied, setCopied] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [weather, setWeather] = useState<{
@@ -112,7 +115,7 @@ export function GeographicInspector({
   const theme = getCategoryTheme(feature.category);
 
   return (
-    <aside className="fixed top-20 right-6 z-40 w-full max-w-sm bg-[#0d0e12]/90 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 pointer-events-auto">
+    <aside className="fixed top-20 right-6 z-40 w-full max-w-sm bg-[#0d0e12]/92 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 pointer-events-auto">
       {/* Real High-Resolution Photographic Hero Header */}
       <div className="relative w-full h-48 bg-slate-900 overflow-hidden group">
         <img
@@ -159,20 +162,22 @@ export function GeographicInspector({
 
       {/* Body Content */}
       <div className="p-4 space-y-3 font-mono text-xs max-h-[58vh] overflow-y-auto scrollbar-thin">
-        {/* Prominent 360 Immersive View Action Button */}
-        {onOpen360 && (
-          <button
-            onClick={() => {
-              playSelect();
-              onOpen360();
-            }}
-            onMouseEnter={playHover}
-            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs shadow-[0_0_24px_rgba(245,158,11,0.4)] transition-all active:scale-[0.98] group"
-          >
-            <Eye className="w-4 h-4 text-slate-950 group-hover:scale-110 transition-transform" />
-            <span>ENTER 360° IMMERSIVE VIEW</span>
-          </button>
-        )}
+        {/* Real 3D Structure 360 Orbit Action Button */}
+        <button
+          onClick={() => {
+            playSelect();
+            onOrbit360();
+          }}
+          onMouseEnter={playHover}
+          className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl font-bold text-xs transition-all active:scale-[0.98] ${
+            isOrbiting
+              ? 'bg-amber-500 text-slate-950 border border-amber-400 shadow-[0_0_24px_rgba(245,158,11,0.5)]'
+              : 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-[0_0_24px_rgba(245,158,11,0.35)]'
+          }`}
+        >
+          <RotateCw className={`w-4 h-4 ${isOrbiting ? 'animate-spin' : ''}`} />
+          <span>{isOrbiting ? 'PAUSE 360° REAL 3D ORBIT' : 'START 360° REAL 3D ORBIT'}</span>
+        </button>
 
         {/* Status / Heritage Banner */}
         <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-[11px] flex items-center justify-between">
@@ -231,7 +236,7 @@ export function GeographicInspector({
           ))}
         </div>
 
-        {/* 3D Camera Angles */}
+        {/* 3D Perspective Angles */}
         <div className="pt-1 space-y-2">
           <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
             3D PERSPECTIVE (RELIEF ANGLE)
@@ -240,27 +245,25 @@ export function GeographicInspector({
             <button
               onClick={() => {
                 playSelect();
-                playFlyTo();
-                onSelectViewpoint(feature.viewpointCloseUp);
+                onSelectTilt(80);
               }}
               onMouseEnter={playHover}
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 hover:text-white transition-all text-[11px] font-bold shadow-sm"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>3D GROUND (80° TILT)</span>
+              <span>80° GROUND 3D</span>
             </button>
 
             <button
               onClick={() => {
                 playSelect();
-                playFlyTo();
-                onSelectViewpoint(feature.viewpointOverview);
+                onSelectTilt(55);
               }}
               onMouseEnter={playHover}
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 hover:text-white transition-all text-[11px] font-medium"
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>3D AERIAL (55° TILT)</span>
+              <span>55° AERIAL 3D</span>
             </button>
           </div>
         </div>
