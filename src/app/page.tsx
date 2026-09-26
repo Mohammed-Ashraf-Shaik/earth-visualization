@@ -8,20 +8,40 @@ import { LayerControl } from '@/components/hud/LayerControl';
 import { CountrySheet } from '@/components/hud/CountrySheet';
 import { Omnibox } from '@/components/hud/Omnibox';
 
-// Dynamic import for WebGL Scene to disable SSR and guarantee clean canvas mount
-const Scene = dynamic(() => import('@/components/canvas/Scene').then((mod) => mod.Scene), {
-  ssr: false,
-  loading: () => (
-    <div className="absolute inset-0 bg-void flex flex-col items-center justify-center font-mono text-cyan-400 gap-4">
-      <div className="w-12 h-12 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
-      <div className="text-xs tracking-widest uppercase animate-pulse">
-        INITIALIZING TERRA WEBGL ENGINE...
+// Dynamic import for Full-DOM 3D Satellite Globe (Deep Zoom & 3D Terrain, like earth3dmap.com)
+const SatelliteGlobe = dynamic(
+  () => import('@/components/canvas/SatelliteGlobe').then((mod) => mod.SatelliteGlobe),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 bg-[#020408] flex flex-col items-center justify-center font-mono text-cyan-400 gap-4">
+        <div className="w-12 h-12 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+        <div className="text-xs tracking-widest uppercase animate-pulse">
+          INITIALIZING 3D SATELLITE GLOBE ENGINE...
+        </div>
       </div>
-    </div>
-  ),
-});
+    ),
+  }
+);
+
+// Dynamic import for WebGL Telemetry Scene (USGS Earthquakes & ISS tracker)
+const TelemetryScene = dynamic(
+  () => import('@/components/canvas/Scene').then((mod) => mod.Scene),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 bg-[#020408] flex flex-col items-center justify-center font-mono text-cyan-400 gap-4">
+        <div className="w-12 h-12 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+        <div className="text-xs tracking-widest uppercase animate-pulse">
+          INITIALIZING PLANETARY TELEMETRY ENGINE...
+        </div>
+      </div>
+    ),
+  }
+);
 
 export default function Home() {
+  const [activeMode, setActiveMode] = useState<'satellite' | 'telemetry'>('satellite');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Global Cmd+K / Ctrl+K hotkey handler
@@ -38,27 +58,31 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-void select-none">
-      {/* 3D WebGL Canvas Layer */}
-      <Scene />
+    <main className="relative w-screen h-screen overflow-hidden bg-[#020408] select-none">
+      {/* Primary 3D Earth Viewport — 100% DOM Focused, Zero Ads, Zero Sidebars */}
+      {activeMode === 'satellite' ? (
+        <SatelliteGlobe />
+      ) : (
+        <>
+          <TelemetryScene />
+          {/* Tactical screen-space reticle and layer control in telemetry mode */}
+          <TelemetryReticle />
+          <LayerControl />
+        </>
+      )}
 
-      {/* Screen-space dynamic cursor crosshair & territorial badge */}
-      <TelemetryReticle />
-
-      {/* Spatial Telemetry HUD: Top Navigation Bar */}
-      <NavigationBar onOpenSearch={() => setIsSearchOpen(true)} />
-
-      {/* Spatial Telemetry HUD: Floating Visual Layer Controller */}
-      <LayerControl />
+      {/* Spatial HUD: Top Navigation & Mode Switcher Bar */}
+      <NavigationBar
+        activeMode={activeMode}
+        onModeChange={setActiveMode}
+        onOpenSearch={() => setIsSearchOpen(true)}
+      />
 
       {/* Slide-over Country Dossier Sheet */}
       <CountrySheet />
 
       {/* Cmd+K Omnibox Search Palette */}
       <Omnibox isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
-
-      {/* Subtle Aerospace CRT Optical Scanline Overlay */}
-      <div className="pointer-events-none fixed inset-0 z-10 crt-overlay opacity-25" />
     </main>
   );
 }
