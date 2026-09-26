@@ -1,112 +1,30 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Compass,
   Maximize2,
   Minimize2,
   Mountain,
-  Navigation,
+  Flame,
+  Waves,
   Sparkles,
-  Layers,
+  Navigation,
   MapPin,
-  ExternalLink,
-  ChevronRight,
-  ChevronLeft,
+  Search,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { GEOGRAPHIC_CATALOG, GeographicFeature, GeoCategory } from '@/data/geographicCatalog';
+import { GeographicInspector } from '@/components/hud/GeographicInspector';
 import { useAudio } from '@/hooks/useAudioSynth';
 
-interface LandmarkDestination {
-  id: string;
-  name: string;
-  category: string;
-  altitudeMeters: number;
-  viewpoint: string;
-  image?: string;
-}
-
-const DESTINATIONS: LandmarkDestination[] = [
-  {
-    id: 'everest',
-    name: 'Mount Everest',
-    category: 'Highest Peak (8,848m)',
-    altitudeMeters: 8848,
-    viewpoint: 'cam:86.9250,27.9881,15000;0,70',
-  },
-  {
-    id: 'grandcanyon',
-    name: 'Grand Canyon',
-    category: 'Geological Wonder (USA)',
-    altitudeMeters: 2100,
-    viewpoint: 'cam:-112.1129,36.1069,9000;45,72',
-  },
-  {
-    id: 'matterhorn',
-    name: 'Swiss Alps (Matterhorn)',
-    category: 'Glacial Peak (4,478m)',
-    altitudeMeters: 4478,
-    viewpoint: 'cam:7.7584,45.9765,9500;30,68',
-  },
-  {
-    id: 'nyc',
-    name: 'Manhattan Skyline',
-    category: 'Megacity 3D Buildings',
-    altitudeMeters: 400,
-    viewpoint: 'cam:-74.0060,40.7128,4500;25,65',
-  },
-  {
-    id: 'tokyo',
-    name: 'Tokyo Metropolis',
-    category: 'Mount Fuji & Skyline',
-    altitudeMeters: 634,
-    viewpoint: 'cam:139.7500,35.6800,5500;15,60',
-  },
-  {
-    id: 'dubai',
-    name: 'Burj Khalifa & Palm',
-    category: 'Modern Wonder (UAE)',
-    altitudeMeters: 828,
-    viewpoint: 'cam:55.2708,25.2048,4200;40,65',
-  },
-  {
-    id: 'paris',
-    name: 'Eiffel Tower',
-    category: 'Historic Architecture',
-    altitudeMeters: 330,
-    viewpoint: 'cam:2.2945,48.8584,3800;20,62',
-  },
-  {
-    id: 'fuji',
-    name: 'Mount Fuji Stratovolcano',
-    category: 'Sacred Volcano (3,776m)',
-    altitudeMeters: 3776,
-    viewpoint: 'cam:138.7274,35.3606,8500;40,65',
-  },
-  {
-    id: 'hawaii',
-    name: 'Mauna Kea Volcano',
-    category: 'Oceanic Shield Volcano',
-    altitudeMeters: 4207,
-    viewpoint: 'cam:-155.4681,19.8206,12000;50,65',
-  },
-  {
-    id: 'tajmahal',
-    name: 'Taj Mahal',
-    category: 'Monumental Heritage',
-    altitudeMeters: 171,
-    viewpoint: 'cam:78.0421,27.1751,2500;20,55',
-  },
-];
-
-interface SatelliteGlobeProps {
-  onCoordsChange?: (lat: number, lng: number, alt: number) => void;
-}
-
-export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
-  // Base 3D WebScene ID: 6682f70b89c4483f88e8df839a011c1e (same as earth3dmap.com)
+export function SatelliteGlobe() {
   const baseWebsceneId = '6682f70b89c4483f88e8df839a011c1e';
   const [activeViewpoint, setActiveViewpoint] = useState<string>('');
-  const [activeLandmark, setActiveLandmark] = useState<string | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<GeographicFeature | null>(null);
+  const [activeCategory, setActiveCategory] = useState<GeoCategory | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRibbonOpen, setIsRibbonOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -115,23 +33,35 @@ export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { playHover, playSelect, playFlyTo } = useAudio();
 
+  // Filter features by category and search
+  const filteredFeatures = useMemo(() => {
+    return GEOGRAPHIC_CATALOG.filter((item) => {
+      const matchesCat = activeCategory === 'all' || item.category === activeCategory;
+      const matchesQuery =
+        !searchQuery.trim() ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.country.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCat && matchesQuery;
+    });
+  }, [activeCategory, searchQuery]);
+
   const iframeSrc = activeViewpoint
     ? `https://www.arcgis.com/home/webscene/viewer.html?webscene=${baseWebsceneId}&ui=min&viewpoint=${encodeURIComponent(
         activeViewpoint
       )}`
     : `https://www.arcgis.com/home/webscene/viewer.html?webscene=${baseWebsceneId}&ui=min`;
 
-  const handleSelectLandmark = (dest: LandmarkDestination) => {
+  const handleSelectFeature = (feat: GeographicFeature) => {
     playSelect();
     playFlyTo();
-    setActiveLandmark(dest.id);
-    setActiveViewpoint(dest.viewpoint);
+    setSelectedFeature(feat);
+    setActiveViewpoint(feat.viewpointCloseUp);
     setIsLoading(true);
   };
 
   const handleResetView = () => {
     playSelect();
-    setActiveLandmark(null);
+    setSelectedFeature(null);
     setActiveViewpoint('');
     setIsLoading(true);
   };
@@ -155,6 +85,19 @@ export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'volcano':
+        return <Flame className="w-3.5 h-3.5 text-amber-400" />;
+      case 'mountain':
+        return <Mountain className="w-3.5 h-3.5 text-cyan-400" />;
+      case 'river':
+        return <Waves className="w-3.5 h-3.5 text-sky-400" />;
+      default:
+        return <Sparkles className="w-3.5 h-3.5 text-purple-400" />;
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -168,15 +111,15 @@ export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
             <Navigation className="w-6 h-6 text-cyan-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
           </div>
           <div className="mt-4 font-mono text-xs text-cyan-300 tracking-widest uppercase">
-            STREAMING 3D SATELLITE TERRAIN TILES...
+            STREAMING 3D SATELLITE TILES & ELEVATION...
           </div>
           <div className="text-[10px] font-mono text-slate-400 mt-1">
-            SUB-METER RESOLUTION • GLOBAL 3D ELEVATION MESH
+            WORLD IMAGERY HYBRID • GLOBAL 3D TERRAIN MESH
           </div>
         </div>
       )}
 
-      {/* 100% Full-DOM 3D Globe Iframe (Zero ads, zero sidebars) */}
+      {/* 100% Full-DOM 3D Globe Viewport (Zero ads, zero side content) */}
       <iframe
         ref={iframeRef}
         src={iframeSrc}
@@ -190,9 +133,8 @@ export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
         }}
       />
 
-      {/* Navigation Quick Controls Floating Toolbar (Top Right) */}
+      {/* Floating Toolbar Controls (Top Right) */}
       <div className="absolute top-20 right-6 z-30 flex flex-col gap-2 pointer-events-auto">
-        {/* Reset View Button */}
         <button
           onClick={handleResetView}
           onMouseEnter={playHover}
@@ -203,7 +145,6 @@ export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
           <span className="hidden sm:inline">GLOBAL ORBIT</span>
         </button>
 
-        {/* Fullscreen Button */}
         <button
           onClick={toggleFullscreen}
           onMouseEnter={playHover}
@@ -219,60 +160,156 @@ export function SatelliteGlobe({ onCoordsChange }: SatelliteGlobeProps) {
         </button>
       </div>
 
-      {/* Quick Fly-To 3D Landmarks Floating Ribbon (Bottom Center) */}
+      {/* Geographic Feature Inspector Card (when feature is active) */}
+      <GeographicInspector
+        feature={selectedFeature}
+        onClose={() => setSelectedFeature(null)}
+        onSelectViewpoint={(vp) => {
+          setActiveViewpoint(vp);
+          setIsLoading(true);
+        }}
+      />
+
+      {/* Bottom Geographical Teleporters & Category Discovery Ribbon */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-full max-w-5xl px-4 pointer-events-auto">
         <div className="bg-slate-950/85 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_12px_40px_0_rgba(0,0,0,0.85)] p-3 transition-all duration-300">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 px-2">
-            <div className="flex items-center gap-2">
-              <Mountain className="w-4 h-4 text-cyan-400" />
-              <span className="font-mono text-xs font-bold text-white tracking-wider uppercase">
-                3D LANDMARK TELEPORTERS & DEEP ZOOM
-              </span>
-              <span className="hidden md:inline text-[10px] font-mono text-cyan-400/80 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                RIGHT-CLICK DRAG TO TILT 3D
-              </span>
+          {/* Header Bar with Category Tabs and Search */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-2 mb-2 border-b border-white/10 px-1">
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none font-mono text-xs">
+              <button
+                onClick={() => {
+                  setActiveCategory('all');
+                  playSelect();
+                }}
+                className={`px-2.5 py-1 rounded-lg transition-all ${
+                  activeCategory === 'all'
+                    ? 'bg-cyan-500 text-slate-950 font-bold'
+                    : 'bg-white/5 text-slate-400 hover:text-white'
+                }`}
+              >
+                ALL
+              </button>
+              <button
+                onClick={() => {
+                  setActiveCategory('mountain');
+                  playSelect();
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all ${
+                  activeCategory === 'mountain'
+                    ? 'bg-cyan-500 text-slate-950 font-bold'
+                    : 'bg-white/5 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Mountain className="w-3 h-3" />
+                <span>MOUNTAINS</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveCategory('volcano');
+                  playSelect();
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all ${
+                  activeCategory === 'volcano'
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : 'bg-white/5 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Flame className="w-3 h-3" />
+                <span>VOLCANOES</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveCategory('river');
+                  playSelect();
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all ${
+                  activeCategory === 'river'
+                    ? 'bg-sky-500 text-slate-950 font-bold'
+                    : 'bg-white/5 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Waves className="w-3 h-3" />
+                <span>RIVERS & FALLS</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveCategory('wonder');
+                  playSelect();
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all ${
+                  activeCategory === 'wonder'
+                    ? 'bg-purple-500 text-slate-950 font-bold'
+                    : 'bg-white/5 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>GEOLOGIC WONDERS</span>
+              </button>
             </div>
 
-            <button
-              onClick={() => {
-                setIsRibbonOpen(!isRibbonOpen);
-                playSelect();
-              }}
-              className="text-slate-400 hover:text-white text-xs font-mono flex items-center gap-1 transition-colors"
-            >
-              <span>{isRibbonOpen ? 'HIDE' : 'SHOW'}</span>
-            </button>
+            {/* Search Input & Collapse Toggle */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter mountains, rivers, volcanoes..."
+                  className="bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 w-44 md:w-56"
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  setIsRibbonOpen(!isRibbonOpen);
+                  playSelect();
+                }}
+                className="text-slate-400 hover:text-white text-xs font-mono p-1 rounded hover:bg-white/5 transition-colors"
+                title={isRibbonOpen ? 'Collapse list' : 'Expand list'}
+              >
+                {isRibbonOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
+          {/* Feature Teleporter Cards Ribbon */}
           {isRibbonOpen && (
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-              {DESTINATIONS.map((dest) => {
-                const isSelected = activeLandmark === dest.id;
-                return (
-                  <button
-                    key={dest.id}
-                    onClick={() => handleSelectLandmark(dest)}
-                    onMouseEnter={playHover}
-                    className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl font-mono text-xs transition-all duration-200 border ${
-                      isSelected
-                        ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-[0_0_20px_rgba(0,240,255,0.3)]'
-                        : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/10 hover:border-cyan-500/40 hover:text-white'
-                    }`}
-                  >
-                    <MapPin
-                      className={`w-3.5 h-3.5 ${isSelected ? 'text-cyan-400' : 'text-slate-500'}`}
-                    />
-                    <div className="text-left">
-                      <div className="font-bold text-[11px] leading-tight truncate">
-                        {dest.name}
+              {filteredFeatures.length === 0 ? (
+                <div className="text-xs font-mono text-slate-500 py-3 px-2">
+                  No features matching current filters.
+                </div>
+              ) : (
+                filteredFeatures.map((feat) => {
+                  const isSelected = selectedFeature?.id === feat.id;
+                  return (
+                    <button
+                      key={feat.id}
+                      onClick={() => handleSelectFeature(feat)}
+                      onMouseEnter={playHover}
+                      className={`flex-shrink-0 flex items-center gap-2.5 px-3 py-2 rounded-xl font-mono text-xs transition-all duration-200 border text-left ${
+                        isSelected
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-[0_0_20px_rgba(0,240,255,0.3)]'
+                          : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/10 hover:border-cyan-500/40 hover:text-white'
+                      }`}
+                    >
+                      <div className="p-1 rounded-lg bg-white/5">
+                        {getCategoryIcon(feat.category)}
                       </div>
-                      <div className="text-[9px] text-slate-400 leading-tight">
-                        {dest.category}
+                      <div className="min-w-0 max-w-[150px]">
+                        <div className="font-bold text-[11px] leading-tight truncate">
+                          {feat.name}
+                        </div>
+                        <div className="text-[9px] text-slate-400 leading-tight truncate">
+                          {feat.country}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
