@@ -125,6 +125,34 @@ npm run start
 
 ---
 
+## 🚀 Deploying to Vercel & Render
+
+### ⚡ Deploy to Vercel
+1. Import repository on [Vercel](https://vercel.com/new).
+2. Framework Preset: **Next.js** (automatically detected via `vercel.json`).
+3. Build Command: `npm run build`
+4. Output Directory: `.next`
+5. Click **Deploy**.
+
+### 🛠️ Deploy to Render
+1. Connect your GitHub repository on [Render](https://dashboard.render.com).
+2. Click **New +** -> **Blueprint**, and select this repository. Render will automatically read [`render.yaml`](./render.yaml).
+3. Alternatively, create a **Web Service**:
+   - **Runtime**: `Node`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+   - **Plan**: Free / Starter
+   - **Health Check Path**: `/`
+4. Click **Create Web Service**.
+
+### 🐳 Deploy via Docker
+```bash
+docker build -t terra-earth .
+docker run -p 10000:10000 terra-earth
+```
+
+---
+
 ## 📜 License
 
 MIT © Mohammed Ashraf Shaik
