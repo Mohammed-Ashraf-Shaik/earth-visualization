@@ -17,19 +17,20 @@ import {
   Wind,
   Copy,
   Check,
-  Maximize2,
 } from 'lucide-react';
 
 interface GeographicInspectorProps {
   feature: GeographicFeature | null;
   onClose: () => void;
   onSelectViewpoint: (viewpoint: string) => void;
+  onOpen360?: () => void;
 }
 
 export function GeographicInspector({
   feature,
   onClose,
   onSelectViewpoint,
+  onOpen360,
 }: GeographicInspectorProps) {
   const { playHover, playSelect, playFlyTo } = useAudio();
   const [copied, setCopied] = useState(false);
@@ -158,6 +159,21 @@ export function GeographicInspector({
 
       {/* Body Content */}
       <div className="p-4 space-y-3 font-mono text-xs max-h-[58vh] overflow-y-auto scrollbar-thin">
+        {/* Prominent 360 Immersive View Action Button */}
+        {onOpen360 && (
+          <button
+            onClick={() => {
+              playSelect();
+              onOpen360();
+            }}
+            onMouseEnter={playHover}
+            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs shadow-[0_0_24px_rgba(245,158,11,0.4)] transition-all active:scale-[0.98] group"
+          >
+            <Eye className="w-4 h-4 text-slate-950 group-hover:scale-110 transition-transform" />
+            <span>ENTER 360° IMMERSIVE VIEW</span>
+          </button>
+        )}
+
         {/* Status / Heritage Banner */}
         <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-[11px] flex items-center justify-between">
           <span className="font-semibold leading-tight">{feature.statusOrType}</span>
@@ -218,7 +234,7 @@ export function GeographicInspector({
         {/* 3D Camera Angles */}
         <div className="pt-1 space-y-2">
           <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-            3D CAMERA VIEWPOINTS
+            3D PERSPECTIVE (RELIEF ANGLE)
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -231,7 +247,7 @@ export function GeographicInspector({
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 hover:text-white transition-all text-[11px] font-bold shadow-sm"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>3D TILT CLOSE-UP</span>
+              <span>3D GROUND (80° TILT)</span>
             </button>
 
             <button
@@ -244,7 +260,7 @@ export function GeographicInspector({
               className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 hover:text-white transition-all text-[11px] font-medium"
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>AERIAL OVERVIEW</span>
+              <span>3D AERIAL (55° TILT)</span>
             </button>
           </div>
         </div>

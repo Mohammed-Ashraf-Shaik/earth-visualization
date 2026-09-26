@@ -15,20 +15,33 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  RotateCw,
+  Eye,
+  Play,
+  Pause,
+  Layers,
 } from 'lucide-react';
 import { GEOGRAPHIC_CATALOG, GeographicFeature, GeoCategory } from '@/data/geographicCatalog';
 import { GeographicInspector } from '@/components/hud/GeographicInspector';
+import { PanoramaViewer } from '@/components/canvas/PanoramaViewer';
 import { useAudio } from '@/hooks/useAudioSynth';
 
 export function SatelliteGlobe() {
   const baseWebsceneId = '6682f70b89c4483f88e8df839a011c1e';
   const [activeViewpoint, setActiveViewpoint] = useState<string>('');
   const [selectedFeature, setSelectedFeature] = useState<GeographicFeature | null>(null);
+  const [active360Panorama, setActive360Panorama] = useState<GeographicFeature | null>(null);
   const [activeCategory, setActiveCategory] = useState<GeoCategory | 'all'>('wonders7'); // Default to 7 Wonders
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRibbonOpen, setIsRibbonOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+
+  // 360 Orbit & 3D Tilt Dynamics State
+  const [isOrbiting, setIsOrbiting] = useState(false);
+  const [orbitHeading, setOrbitHeading] = useState(0);
+  const [tiltAngle, setTiltAngle] = useState(80); // Default to steep 80° for deep 3D ground relief
+  const [altitudeMeters, setAltitudeMeters] = useState(800);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -56,6 +69,9 @@ export function SatelliteGlobe() {
     playSelect();
     playFlyTo();
     setSelectedFeature(feat);
+    setIsOrbiting(false);
+    setOrbitHeading(0);
+    setTiltAngle(80); // Ensure steep 3D tilt (NOT flat!)
     setActiveViewpoint(feat.viewpointCloseUp);
     setIsLoading(true);
   };
@@ -63,6 +79,7 @@ export function SatelliteGlobe() {
   const handleResetView = () => {
     playSelect();
     setSelectedFeature(null);
+    setIsOrbiting(false);
     setActiveViewpoint('');
     setIsLoading(true);
   };
@@ -75,6 +92,42 @@ export function SatelliteGlobe() {
     } else {
       document.exitFullscreen().catch(() => {});
       setIsFullscreen(false);
+    }
+  };
+
+  // Continuous 360° Camera Orbit Animation
+  useEffect(() => {
+    if (!isOrbiting || !selectedFeature) return;
+
+    const orbitInterval = setInterval(() => {
+      setOrbitHeading((prev) => {
+        const next = (prev + 45) % 360;
+        const viewpointStr = `cam:${selectedFeature.lng},${selectedFeature.lat},${altitudeMeters};${next},${tiltAngle}`;
+        setActiveViewpoint(viewpointStr);
+        return next;
+      });
+    }, 4500);
+
+    return () => clearInterval(orbitInterval);
+  }, [isOrbiting, selectedFeature, altitudeMeters, tiltAngle]);
+
+  const handleSetHeading = (heading: number) => {
+    playSelect();
+    setOrbitHeading(heading);
+    if (selectedFeature) {
+      setActiveViewpoint(
+        `cam:${selectedFeature.lng},${selectedFeature.lat},${altitudeMeters};${heading},${tiltAngle}`
+      );
+    }
+  };
+
+  const handleSetTilt = (tilt: number) => {
+    playSelect();
+    setTiltAngle(tilt);
+    if (selectedFeature) {
+      setActiveViewpoint(
+        `cam:${selectedFeature.lng},${selectedFeature.lat},${altitudeMeters};${orbitHeading},${tilt}`
+      );
     }
   };
 
@@ -106,6 +159,19 @@ export function SatelliteGlobe() {
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-[#07080a] select-none"
     >
+      {/* 360° Photosphere Overlay (Mounts when active360Panorama is chosen) */}
+      {active360Panorama && (
+        <PanoramaViewer
+          feature={active360Panorama}
+          onClose={() => setActive360Panorama(null)}
+          onSelectFeature={(feat) => {
+            setSelectedFeature(feat);
+            setActive360Panorama(feat);
+            setActiveViewpoint(feat.viewpointCloseUp);
+          }}
+        />
+      )}
+
       {/* Loading state indicator */}
       {isLoading && (
         <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center bg-[#07080a]/85 backdrop-blur-md transition-opacity duration-500">
@@ -163,10 +229,127 @@ export function SatelliteGlobe() {
         </button>
       </div>
 
+      {/* Floating 360° Orbit & 3D Tilt Dynamics Dock (Top Left) */}
+      {selectedFeature && (
+        <div className="absolute top-20 left-6 z-30 flex flex-col gap-2.5 max-w-xs bg-[#0c0d12]/90 backdrop-blur-2xl border border-white/[0.08] p-3.5 rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.85)] font-mono text-xs animate-in slide-in-from-left duration-200 pointer-events-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+            <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px] uppercase tracking-wider">
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>360° CAMERA DYNAMICS</span>
+            </div>
+            <span className="text-[10px] text-amber-300/80 font-bold">{orbitHeading}° HDG</span>
+          </div>
+
+          {/* Primary Action: Launch 360 Photosphere */}
+          <button
+            onClick={() => {
+              playSelect();
+              setActive360Panorama(selectedFeature);
+            }}
+            onMouseEnter={playHover}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-[11px] shadow-[0_0_20px_rgba(245,158,11,0.35)] transition-all active:scale-95"
+          >
+            <Eye className="w-4 h-4" />
+            <span>ENTER 360° GROUND VIEW</span>
+          </button>
+
+          {/* 360 Orbit Toggle Button */}
+          <button
+            onClick={() => {
+              playSelect();
+              setIsOrbiting((prev) => !prev);
+            }}
+            onMouseEnter={playHover}
+            className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[11px] font-bold transition-all ${
+              isOrbiting
+                ? 'bg-amber-500/20 text-amber-300 border-amber-400/50 shadow-[0_0_16px_rgba(245,158,11,0.25)]'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/[0.08]'
+            }`}
+          >
+            {isOrbiting ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            <span>{isOrbiting ? 'PAUSE 360° ORBIT' : 'AUTO 360° 3D ORBIT'}</span>
+          </button>
+
+          {/* 3D Tilt Selector (Never Flat!) */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>3D PERSPECTIVE TILT:</span>
+              <span className="text-amber-300 font-bold">{tiltAngle}°</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => handleSetTilt(80)}
+                className={`py-1.5 px-1 rounded-lg text-[10px] font-bold border transition-all ${
+                  tiltAngle === 80
+                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                    : 'bg-white/[0.03] text-slate-300 border-white/[0.06] hover:bg-white/[0.08]'
+                }`}
+                title="Ground Level 3D (Maximum Elevation Relief)"
+              >
+                80° GROUND
+              </button>
+              <button
+                onClick={() => handleSetTilt(65)}
+                className={`py-1.5 px-1 rounded-lg text-[10px] font-bold border transition-all ${
+                  tiltAngle === 65
+                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                    : 'bg-white/[0.03] text-slate-300 border-white/[0.06] hover:bg-white/[0.08]'
+                }`}
+                title="Oblique 3D (Cinematic Angle)"
+              >
+                65° OBLIQUE
+              </button>
+              <button
+                onClick={() => handleSetTilt(45)}
+                className={`py-1.5 px-1 rounded-lg text-[10px] font-bold border transition-all ${
+                  tiltAngle === 45
+                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                    : 'bg-white/[0.03] text-slate-300 border-white/[0.06] hover:bg-white/[0.08]'
+                }`}
+                title="Overhead 3D Angle"
+              >
+                45° AERIAL
+              </button>
+            </div>
+          </div>
+
+          {/* 360 Cardinal Direction Compass Buttons */}
+          <div className="space-y-1.5 pt-1">
+            <div className="text-[10px] text-slate-400">CARDINAL 360° HEADING:</div>
+            <div className="grid grid-cols-4 gap-1">
+              {[
+                { label: 'N 0°', val: 0 },
+                { label: 'E 90°', val: 90 },
+                { label: 'S 180°', val: 180 },
+                { label: 'W 270°', val: 270 },
+              ].map((c) => (
+                <button
+                  key={c.val}
+                  onClick={() => handleSetHeading(c.val)}
+                  className={`py-1 rounded-lg text-[10px] border transition-all ${
+                    orbitHeading === c.val
+                      ? 'bg-amber-400/20 text-amber-200 border-amber-400/40 font-bold'
+                      : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:text-white'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Geographic Feature Inspector Card (when feature is active) */}
       <GeographicInspector
         feature={selectedFeature}
         onClose={() => setSelectedFeature(null)}
+        onOpen360={() => {
+          if (selectedFeature) {
+            setActive360Panorama(selectedFeature);
+          }
+        }}
         onSelectViewpoint={(vp) => {
           setActiveViewpoint(vp);
           setIsLoading(true);
@@ -296,7 +479,7 @@ export function SatelliteGlobe() {
             </div>
           </div>
 
-          {/* Feature Cards Ribbon with Real Photography Thumbnails */}
+          {/* Feature Cards Ribbon with Real Photography Thumbnails & Direct 360 Buttons */}
           {isRibbonOpen && (
             <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-thin">
               {filteredFeatures.length === 0 ? (
@@ -307,43 +490,63 @@ export function SatelliteGlobe() {
                 filteredFeatures.map((feat) => {
                   const isSelected = selectedFeature?.id === feat.id;
                   return (
-                    <button
+                    <div
                       key={feat.id}
-                      onClick={() => handleSelectFeature(feat)}
-                      onMouseEnter={playHover}
-                      className={`flex-shrink-0 flex items-center gap-3 p-2 rounded-xl font-mono text-xs transition-all duration-200 border text-left group ${
+                      className={`flex-shrink-0 flex items-center gap-2.5 p-2 rounded-xl font-mono text-xs transition-all duration-200 border text-left group relative ${
                         isSelected
                           ? 'bg-amber-500/15 border-amber-400/60 shadow-[0_0_24px_rgba(245,158,11,0.2)]'
                           : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.06] hover:border-amber-400/30'
                       }`}
                     >
-                      {/* Photo Thumbnail */}
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-800 flex-shrink-0 relative">
-                        <img
-                          src={feat.imageUrl}
-                          alt={feat.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                      </div>
+                      {/* Photo Thumbnail (Click to Fly To on 3D Globe) */}
+                      <button
+                        onClick={() => handleSelectFeature(feat)}
+                        onMouseEnter={playHover}
+                        className="flex items-center gap-3 text-left focus:outline-none"
+                      >
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-800 flex-shrink-0 relative">
+                          <img
+                            src={feat.imageUrl}
+                            alt={feat.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                        </div>
 
-                      {/* Text info */}
-                      <div className="min-w-0 max-w-[160px] pr-1">
-                        <div
-                          className={`font-bold text-[12px] leading-tight truncate ${
-                            isSelected ? 'text-amber-200' : 'text-slate-100 group-hover:text-white'
-                          }`}
-                        >
-                          {feat.name}
+                        {/* Text info */}
+                        <div className="min-w-0 max-w-[130px] pr-1">
+                          <div
+                            className={`font-bold text-[12px] leading-tight truncate ${
+                              isSelected ? 'text-amber-200' : 'text-slate-100 group-hover:text-white'
+                            }`}
+                          >
+                            {feat.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 leading-tight truncate mt-0.5">
+                            {feat.country}
+                          </div>
+                          <div className="text-[9px] text-amber-300/70 font-semibold leading-tight truncate mt-0.5">
+                            {feat.categoryLabel}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-400 leading-tight truncate mt-0.5">
-                          {feat.country}
-                        </div>
-                        <div className="text-[9px] text-amber-300/70 font-semibold leading-tight truncate mt-0.5">
-                          {feat.categoryLabel}
-                        </div>
-                      </div>
-                    </button>
+                      </button>
+
+                      {/* Direct 360 View Action Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playSelect();
+                          setSelectedFeature(feat);
+                          setActive360Panorama(feat);
+                        }}
+                        onMouseEnter={playHover}
+                        title={`Open 360° Photosphere of ${feat.name}`}
+                        className="p-2 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-400/30 hover:border-amber-400 transition-all flex flex-col items-center justify-center gap-0.5 self-stretch"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-bold">360°</span>
+                      </button>
+                    </div>
                   );
                 })
               )}
